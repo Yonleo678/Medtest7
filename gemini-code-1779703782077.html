@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>营销推广数据汇总系统 | 管理后台</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Noto Sans SC"', 'sans-serif'] },
+                    colors: {
+                        gold: { 50: '#fbfaf5', 100: '#f5f0e1', 500: '#d4af37', 600: '#c5a030', 700: '#a38426' },
+                        silver: { 100: '#f8f9fa', 300: '#e2e8f0', 500: '#94a3b8' }
+                    },
+                    boxShadow: {
+                        'card': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                        'float': '0 10px 30px -5px rgba(212, 175, 55, 0.15)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #fcfcfc; -webkit-font-smoothing: antialiased; }
+        .glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.5); }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        .slide-fade-enter-active { transition: all 0.4s ease-out; }
+        .slide-fade-leave-active { transition: all 0.3s cubic-bezier(1, 0.5, 0.8, 1); }
+        .slide-fade-enter-from, .slide-fade-leave-to { transform: translateY(20px); opacity: 0; }
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+        [v-cloak] { display: none; }
+        .sync-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="text-gray-800">
+    <div id="app" v-cloak class="min-h-screen flex flex-col md:flex-row">
+        
+        <aside class="w-full md:w-64 bg-white border-r border-gray-100 shadow-sm flex flex-col z-20">
+            <div class="h-16 flex items-center px-6 border-b border-gray-100">
+                <i class="ph-fill ph-chart-polar text-gold-500 text-2xl mr-2"></i>
+                <h1 class="font-bold text-lg tracking-wide">营销数据汇总</h1>
+            </div>
+            
+            <div class="p-4 flex-1 overflow-y-auto space-y-6">
+                <div>
+                    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">数据视图</h2>
+                    <ul class="space-y-1">
+                        <li>
+                            <button @click="currentPlatform = 'all'" :class="{'bg-gold-50 text-gold-600': currentPlatform === 'all', 'hover:bg-gray-50 text-gray-600': currentPlatform !== 'all'}" class="w-full flex items-center px-3 py-2 text-sm rounded-lg transition-colors">
+                                <i class="ph ph-squares-four mr-3 text-lg"></i> 全渠道汇总
+                            </button>
+                        </li>
+                        <li v-for="plat in platforms" :key="plat.id">
+                            <button @click="currentPlatform = plat.id" :class="{'bg-gold-50 text-gold-600': currentPlatform === plat.id, 'hover:bg-gray-50 text-gray-600': currentPlatform !== plat.id}" class="w-full flex items-center px-3 py-2 text-sm rounded-lg transition-colors">
+                                <i class="ph ph-hash mr-3 text-lg"></i> {{ plat.name }}
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">管理模块</h2>
+                    <ul class="space-y-1">
+                        <li>
+                            <button @click="activeTab = 'dashboard'" :class="{'bg-gold-50 text-gold-600': activeTab === 'dashboard', 'hover:bg-gray-50 text-gray-600': activeTab !== 'dashboard'}" class="w-full flex items-center px-3 py-2 text-sm rounded-lg transition-colors">
+                                <i class="ph ph-chart-line-up mr-3 text-lg"></i> 数据看板
+                            </button>
+                        </li>
+                        <li>
+                            <button @click="activeTab = 'records'" :class="{'bg-gold-50 text-gold-600': activeTab === 'records', 'hover:bg-gray-50 text-gray-600': activeTab !== 'records'}" class="w-full flex items-center px-3 py-2 text-sm rounded-lg transition-colors">
+                                <i class="ph ph-users mr-3 text-lg"></i> 初诊记录管理
+                            </button>
+                        </li>
+                        <li>
+                            <button @click="activeTab = 'expenses'" :class="{'bg-gold-50 text-gold-600': activeTab === 'expenses', 'hover:bg-gray-50 text-gray-600': activeTab !== 'expenses'}" class="w-full flex items-center px-3 py-2 text-sm rounded-lg transition-colors">
+                                <i class="ph ph-currency-cny mr-3 text-lg"></i> 推广费用管理
+                            </button>
+                        </li>
+                        <li>
+                            <button @click="activeTab = 'platforms'" :class="{'bg-gold-50 text-gold-600': activeTab === 'platforms', 'hover:bg-gray-50 text-gray-600': activeTab !== 'platforms'}" class="w-full flex items-center px-3 py-2 text-sm rounded-lg transition-colors">
+                                <i class="ph ph-layout mr-3 text-lg"></i> 多平台与账户管理
+                            </button>
+                        </li>
+                        <li>
+                            <button @click="activeTab = 'trash'" :class="{'bg-gold-50 text-gold-600': activeTab === 'trash', 'hover:bg-gray-50 text-gray-600': activeTab !== 'trash'}" class="w-full flex items-center px-3 py-2 text-sm rounded-lg transition-colors">
+                                <i class="ph ph-trash mr-3 text-lg"></i> 回收站
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
+                <div class="flex items-center space-x-2 cursor-pointer hover:text-gray-800 transition-colors" @click="syncData">
+                    <i :class="['ph text-lg', isSyncing ? 'ph-spinner sync-spin text-gold-500' : 'ph-cloud-check text-green-500']"></i>
+                    <span>{{ isSyncing ? '同步中...' : '已同步' }}</span>
+                </div>
+                <button @click="modals.settings = true" class="hover:text-gray-800 transition-colors">
+                    <i class="ph ph-gear text-xl"></i>
+                </button>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+            
+            <header class="h-16 glass flex items-center justify-between px-6 z-10">
+                <div class="flex items-center space-x-4">
+                    <span class="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-600 shadow-sm flex items-center">
+                        <i class="ph ph-funnel mr-1"></i> 月份筛选
+                        <select v-model="filterMonth" class="ml-2 bg-transparent outline-none cursor-pointer">
+                            <option value="all">全部月份</option>
+                            <option v-for="m in availableMonths" :key="m" :value="m">{{ m }}</option>
+                        </select>
+                    </span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button @click="exportToExcel" class="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex items-center shadow-sm">
+                        <i class="ph ph-file-xls mr-1.5 text-green-600"></i> 导出报表
+                    </button>
+                    <div class="h-6 w-px bg-gray-200"></div>
+                    <div class="flex items-center bg-gray-100 p-1 rounded-lg">
+                        <span class="px-3 py-1 text-xs rounded-md transition-colors font-medium" :class="isAdmin ? 'bg-white shadow text-gray-800' : 'text-gray-500'">管理员</span>
+                        <span class="px-3 py-1 text-xs rounded-md transition-colors font-medium" :class="!isAdmin ? 'bg-white shadow text-gray-800' : 'text-gray-500'">游客只读</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-y-auto p-6 scroll-smooth">
+                
+                <div v-show="activeTab === 'dashboard'" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-white p-6 rounded-2xl shadow-card border border-gray-50 flex items-center justify-between hover:shadow-float transition-all">
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">总推广花费 ({{ currentPlatformName }})</p>
+                                <h3 class="text-2xl font-bold text-gray-800">¥{{ formatNumber(stats.totalCost) }}</h3>
+                            </div>
+                            <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-red-500"><i class="ph ph-trend-down text-2xl"></i></div>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-card border border-gray-50 flex items-center justify-between hover:shadow-float transition-all">
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">初诊总人数</p>
+                                <h3 class="text-2xl font-bold text-gray-800">{{ stats.totalFirstVisits }} <span class="text-xs font-normal text-gray-400">人</span></h3>
+                            </div>
+                            <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500"><i class="ph ph-users-three text-2xl"></i></div>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-card border border-gray-50 flex items-center justify-between hover:shadow-float transition-all relative overflow-hidden">
+                            <div class="absolute right-0 top-0 w-24 h-24 bg-gradient-to-br from-gold-100 to-transparent rounded-bl-full opacity-50"></div>
+                            <div class="relative z-10">
+                                <p class="text-sm text-gray-500 mb-1">初诊获客成本 (CPA)</p>
+                                <h3 class="text-2xl font-bold text-gold-600">¥{{ stats.cpa }} <span class="text-xs font-normal text-gray-400">/人</span></h3>
+                            </div>
+                            <div class="relative z-10 w-12 h-12 bg-gold-50 rounded-xl flex items-center justify-center text-gold-600"><i class="ph ph-target text-2xl"></i></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white p-6 rounded-2xl shadow-card border border-gray-50">
+                            <h3 class="text-base font-bold mb-4 flex items-center"><i class="ph-fill ph-pie-chart text-gold-500 mr-2"></i> 项目类别消费占比 (点击放大)</h3>
+                            <div class="h-64 cursor-pointer" @click="openChartModal">
+                                <canvas id="pieChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-card border border-gray-50">
+                            <h3 class="text-base font-bold mb-4 flex items-center"><i class="ph-fill ph-chart-bar text-gold-500 mr-2"></i> 初诊人数趋势</h3>
+                            <div class="h-64">
+                                <canvas id="barChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-show="activeTab === 'records'" class="bg-white rounded-2xl shadow-card border border-gray-50 p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-bold">初诊数据记录</h2>
+                        <div class="flex space-x-3">
+                            <div class="relative">
+                                <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-gray-400"></i>
+                                <input v-model="searchQuery.records" type="text" placeholder="搜索客户..." class="pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gold-500 focus:bg-white transition-all w-48">
+                            </div>
+                            <button v-if="isAdmin" @click="openRecordModal()" class="bg-gold-500 hover:bg-gold-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-md shadow-gold-500/20 flex items-center">
+                                <i class="ph ph-plus mr-1.5"></i> 闭环：新增初诊
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="text-gray-400 text-sm border-b border-gray-100">
+                                    <th class="py-3 font-medium">客户 / 记录时间</th>
+                                    <th class="py-3 font-medium">所属平台</th>
+                                    <th class="py-3 font-medium">包含项目数</th>
+                                    <th class="py-3 font-medium">总成交金额</th>
+                                    <th class="py-3 font-medium text-right" v-if="isAdmin">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="rec in paginatedRecords" :key="rec.id" class="border-b border-gray-50 hover:bg-gray-50/50 transition-colors group">
+                                    <td class="py-4">
+                                        <div class="font-medium text-gray-800">{{ rec.customerName }}</div>
+                                        <div class="text-xs text-gray-400">{{ rec.month }}</div>
+                                    </td>
+                                    <td class="py-4 text-sm"><span class="px-2 py-1 bg-gray-100 rounded text-gray-600">{{ getPlatformName(rec.platformId) }}</span></td>
+                                    <td class="py-4 text-sm">{{ rec.items.length }} 项</td>
+                                    <td class="py-4 text-sm font-bold text-gray-700">¥{{ formatNumber(calculateRecordTotal(rec)) }}</td>
+                                    <td class="py-4 text-right opacity-0 group-hover:opacity-100 transition-opacity" v-if="isAdmin">
+                                        <button @click="openRecordModal(rec)" class="text-blue-500 hover:text-blue-600 mx-2"><i class="ph ph-pencil-simple text-lg"></i></button>
+                                        <button @click="confirmDelete('record', rec.id)" class="text-red-500 hover:text-red-600"><i class="ph ph-trash text-lg"></i></button>
+                                    </td>
+                                </tr>
+                                <tr v-if="paginatedRecords.length === 0"><td colspan="5" class="text-center py-8 text-gray-400 text-sm">暂无数据</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-4 flex justify-between items-center text-sm text-gray-500" v-if="filteredRecords.length > 0">
+                        <span>共 {{ filteredRecords.length }} 条</span>
+                        <div class="flex space-x-1">
+                            <button @click="page.records--" :disabled="page.records === 1" class="px-2 py-1 border rounded disabled:opacity-50"><i class="ph ph-caret-left"></i></button>
+                            <span class="px-3 py-1">{{ page.records }} / {{ Math.ceil(filteredRecords.length / itemsPerPage) }}</span>
+                            <button @click="page.records++" :disabled="page.records >= Math.ceil(filteredRecords.length / itemsPerPage)" class="px-2 py-1 border rounded disabled:opacity-50"><i class="ph ph-caret-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-show="activeTab === 'expenses'" class="bg-white rounded-2xl shadow-card border border-gray-50 p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-bold">推广花费记录</h2>
+                        <button v-if="isAdmin" @click="openExpenseModal()" class="bg-gold-500 hover:bg-gold-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-md shadow-gold-500/20 flex items-center">
+                            <i class="ph ph-plus mr-1.5"></i> 记录花费
+                        </button>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-gray-400 text-sm border-b border-gray-100">
+                                <th class="py-3 font-medium">时间 (月份)</th>
+                                <th class="py-3 font-medium">平台</th>
+                                <th class="py-3 font-medium">花费金额</th>
+                                <th class="py-3 font-medium text-right" v-if="isAdmin">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="exp in filteredExpenses" :key="exp.id" class="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                                <td class="py-4 text-sm">{{ exp.month }}</td>
+                                <td class="py-4 text-sm"><span class="px-2 py-1 bg-gray-100 rounded text-gray-600">{{ getPlatformName(exp.platformId) }}</span></td>
+                                <td class="py-4 text-sm font-bold text-red-500">¥{{ formatNumber(exp.amount) }}</td>
+                                <td class="py-4 text-right" v-if="isAdmin">
+                                    <button @click="openExpenseModal(exp)" class="text-blue-500 hover:text-blue-600 mx-2"><i class="ph ph-pencil-simple text-lg"></i></button>
+                                    <button @click="confirmDelete('expense', exp.id)" class="text-red-500 hover:text-red-600"><i class="ph ph-trash text-lg"></i></button>
+                                </td>
+                            </tr>
+                            <tr v-if="filteredExpenses.length === 0"><td colspan="4" class="text-center py-8 text-gray-400 text-sm">暂无数据</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div v-show="activeTab === 'platforms'" class="bg-white rounded-2xl shadow-card border border-gray-50 p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-bold">平台与账户配置</h2>
+                        <button v-if="isAdmin" @click="addPlatform" class="bg-white border border-gray-200 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center">
+                            <i class="ph ph-plus mr-1.5"></i> 新增平台
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div v-for="plat in platforms" :key="plat.id" class="border border-gray-200 rounded-xl p-4 flex flex-col group relative">
+                            <div v-if="isAdmin" class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button @click="confirmDelete('platform', plat.id)" class="text-red-400 hover:text-red-600 bg-white rounded p-1 shadow-sm"><i class="ph ph-trash"></i></button>
+                            </div>
+                            <label class="text-xs text-gray-400 mb-1">平台名称</label>
+                            <input v-model="plat.name" :disabled="!isAdmin" @change="debouncedSync" class="font-bold text-gray-800 bg-transparent border-none focus:ring-0 p-0 text-lg mb-2">
+                            <label class="text-xs text-gray-400 mb-1 mt-2">账户标识/登录名</label>
+                            <input v-model="plat.account" :disabled="!isAdmin" @change="debouncedSync" class="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded p-1.5 focus:border-gold-500 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div v-show="activeTab === 'trash'" class="bg-white rounded-2xl shadow-card border border-gray-50 p-6">
+                    <h2 class="text-lg font-bold mb-6 flex items-center"><i class="ph ph-trash mr-2"></i> 数据回收站</h2>
+                    <ul class="space-y-3">
+                        <li v-for="item in trashList" :key="item.type + item.id" class="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
+                            <div>
+                                <span class="text-xs px-2 py-0.5 bg-gray-200 rounded mr-2">{{ item.type === 'record' ? '初诊' : '费用' }}</span>
+                                <span class="text-sm">{{ item.desc }}</span>
+                            </div>
+                            <button v-if="isAdmin" @click="restoreItem(item.type, item.id)" class="text-green-600 hover:text-green-700 text-sm font-medium flex items-center bg-white px-2 py-1 rounded shadow-sm border border-gray-200">
+                                <i class="ph ph-arrow-counter-clockwise mr-1"></i> 恢复
+                            </button>
+                        </li>
+                        <li v-if="trashList.length === 0" class="text-center py-8 text-gray-400 text-sm">回收站为空</li>
+                    </ul>
+                </div>
+
+            </div>
+        </main>
+
+        <transition name="fade">
+            <div v-if="modals.record" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center backdrop-blur-sm">
+                <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl" @click.stop>
+                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                        <h3 class="font-bold text-lg">{{ editingRecord.id ? '编辑初诊记录' : '新增闭环数据 (初诊)' }}</h3>
+                        <button @click="modals.record = false" class="text-gray-400 hover:text-gray-600"><i class="ph ph-x text-xl"></i></button>
+                    </div>
+                    <div class="p-6 overflow-y-auto flex-1">
+                        <div class="grid grid-cols-3 gap-4 mb-6">
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">月份</label>
+                                <input type="month" v-model="editingRecord.month" class="w-full border border-gray-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-gold-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">平台来源</label>
+                                <select v-model="editingRecord.platformId" class="w-full border border-gray-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-gold-500 focus:outline-none">
+                                    <option v-for="p in platforms" :value="p.id">{{ p.name }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">客户姓名/标识</label>
+                                <input type="text" v-model="editingRecord.customerName" placeholder="如：张女士" class="w-full border border-gray-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-gold-500 focus:outline-none">
+                            </div>
+                        </div>
+                        
+                        <div class="border border-gray-200 rounded-xl overflow-hidden">
+                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 flex justify-between items-center">
+                                <span class="text-sm font-bold text-gray-700">消费明细项目</span>
+                                <button @click="addSubItem" class="text-gold-600 hover:text-gold-700 text-sm flex items-center"><i class="ph ph-plus-circle mr-1"></i> 添加项目</button>
+                            </div>
+                            <div class="p-4 space-y-3 bg-white">
+                                <div v-for="(item, idx) in editingRecord.items" :key="idx" class="flex space-x-2 items-start relative group">
+                                    <select v-model="item.category" class="w-1/4 border border-gray-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-gold-500">
+                                        <option value="脱毛护理">脱毛护理</option>
+                                        <option value="皮肤项目">皮肤项目</option>
+                                        <option value="注射项目">注射项目</option>
+                                        <option value="手术项目">手术项目</option>
+                                    </select>
+                                    <input type="text" v-model="item.name" placeholder="具体项目名" class="flex-1 border border-gray-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-gold-500">
+                                    <input type="number" v-model="item.count" min="1" placeholder="人数" class="w-20 border border-gray-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-gold-500">
+                                    <div class="relative w-28">
+                                        <span class="absolute left-2 top-2 text-gray-400 text-sm">¥</span>
+                                        <input type="number" v-model="item.amount" placeholder="金额" class="w-full pl-6 pr-2 py-2 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-gold-500">
+                                    </div>
+                                    <button @click="editingRecord.items.splice(idx,1)" class="p-2 text-gray-300 hover:text-red-500 transition-colors"><i class="ph ph-minus-circle text-lg"></i></button>
+                                </div>
+                                <div v-if="editingRecord.items.length === 0" class="text-center text-sm text-gray-400 py-4">暂无项目，点击右上角添加</div>
+                            </div>
+                            <div class="bg-gray-50 px-4 py-3 border-t border-gray-200 text-right">
+                                <span class="text-sm text-gray-600">总计金额：</span>
+                                <span class="text-lg font-bold text-gold-600">¥{{ formatNumber(editingRecordTotal) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="px-6 py-4 border-t border-gray-100 flex justify-end space-x-3 bg-white">
+                        <button @click="modals.record = false" class="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">取消</button>
+                        <button @click="saveRecord" class="px-4 py-2 bg-gold-500 hover:bg-gold-600 text-white rounded-lg text-sm font-medium shadow-md shadow-gold-500/20">保存记录</button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <transition name="fade">
+            <div v-if="modals.expense" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center backdrop-blur-sm">
+                <div class="bg-white rounded-2xl w-96 overflow-hidden shadow-2xl">
+                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                        <h3 class="font-bold text-lg">{{ editingExpense.id ? '编辑推广花费' : '记录推广花费' }}</h3>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">月份</label>
+                            <input type="month" v-model="editingExpense.month" class="w-full border border-gray-200 rounded-lg p-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">平台</label>
+                            <select v-model="editingExpense.platformId" class="w-full border border-gray-200 rounded-lg p-2 text-sm">
+                                <option v-for="p in platforms" :value="p.id">{{ p.name }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">花费总额 (¥)</label>
+                            <input type="number" v-model="editingExpense.amount" class="w-full border border-gray-200 rounded-lg p-2 text-sm font-bold text-red-500">
+                        </div>
+                    </div>
+                    <div class="px-6 py-4 border-t border-gray-100 flex justify-end space-x-3 bg-gray-50">
+                        <button @click="modals.expense = false" class="px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm text-gray-600 hover:bg-gray-100">取消</button>
+                        <button @click="saveExpense" class="px-4 py-2 bg-gold-500 hover:bg-gold-600 text-white rounded-lg text-sm font-medium">确认</button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <transition name="fade">
+            <div v-if="modals.settings" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center backdrop-blur-sm">
+                <div class="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                        <h3 class="font-bold text-lg flex items-center"><i class="ph-fill ph-cloud-arrow-up text-blue-500 mr-2"></i> 云同步与访问设置</h3>
+                        <button @click="modals.settings = false" class="text-gray-400 hover:text-gray-600"><i class="ph ph-x text-xl"></i></button>
+                    </div>
+                    <div class="p-6 space-y-6">
+                        <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100 text-sm text-blue-800">
+                            填写 GitHub Token 和 Gist ID 即可实现免费实时云同步。数据变动后会自动上传保存。
+                        </div>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">GitHub PAT (Token)</label>
+                                <input type="password" v-model="config.gistToken" @change="saveConfig" placeholder="ghp_xxxxxxxxxxx" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Gist ID</label>
+                                <input type="text" v-model="config.gistId" @change="saveConfig" placeholder="输入已存在的 Gist ID" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+                        <div class="border-t border-gray-100 pt-5">
+                            <h4 class="text-sm font-bold mb-3">快捷访问链接生成</h4>
+                            <div class="flex space-x-3">
+                                <button @click="generateMagicLink('bookmark')" class="flex-1 border border-gold-500 text-gold-600 bg-gold-50 hover:bg-gold-100 py-2 rounded-lg text-sm font-medium transition-colors">
+                                    <i class="ph ph-bookmark-simple"></i> 书签魔术链接
+                                </button>
+                                <button @click="generateMagicLink('guest')" class="flex-1 border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 py-2 rounded-lg text-sm font-medium transition-colors">
+                                    <i class="ph ph-eye"></i> 访客仅读链接
+                                </button>
+                            </div>
+                            <textarea v-if="magicLinkResult" readonly :value="magicLinkResult" class="mt-3 w-full h-20 text-xs bg-gray-800 text-green-400 p-2 rounded-lg font-mono outline-none"></textarea>
+                        </div>
+                    </div>
+                    <div class="px-6 py-4 border-t border-gray-100 flex justify-between bg-gray-50">
+                        <button @click="forceSync" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium flex items-center">
+                            <i class="ph ph-arrows-clockwise mr-1.5"></i> 手动强制同步
+                        </button>
+                        <button @click="modals.settings = false" class="px-6 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-sm font-medium">完成</button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <transition name="fade">
+            <div v-if="modals.chart" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6 backdrop-blur-md" @click="modals.chart = false">
+                <div class="bg-white rounded-3xl w-full max-w-4xl p-8 shadow-2xl relative" @click.stop>
+                    <button @click="modals.chart = false" class="absolute top-6 right-6 text-gray-400 hover:text-gray-800 bg-gray-100 rounded-full p-2"><i class="ph ph-x"></i></button>
+                    <h3 class="text-xl font-bold mb-6 text-center">各类别项目消费数据详情</h3>
+                    <div class="h-96 w-full flex justify-center">
+                        <canvas id="modalPieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <transition name="fade">
+            <div v-if="modals.confirm" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center backdrop-blur-sm">
+                <div class="bg-white rounded-xl w-80 p-6 text-center shadow-2xl">
+                    <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                        <i class="ph ph-warning-circle text-3xl"></i>
+                    </div>
+                    <h3 class="font-bold text-lg mb-2">确认删除？</h3>
+                    <p class="text-sm text-gray-500 mb-6">删除后数据将进入回收站，可恢复。</p>
+                    <div class="flex space-x-3">
+                        <button @click="modals.confirm = false" class="flex-1 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">取消</button>
+                        <button @click="executeDelete" class="flex-1 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 shadow-md shadow-red-500/30">确认删除</button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <div class="fixed bottom-6 right-6 z-50 flex flex-col space-y-2 pointer-events-none">
+            <transition-group name="slide-fade">
+                <div v-for="toast in toasts" :key="toast.id" 
+                    class="px-4 py-3 rounded-xl shadow-lg backdrop-blur-md text-sm font-medium flex items-center min-w-[200px]"
+                    :class="{
+                        'bg-white/90 border border-green-200 text-green-700': toast.type === 'success',
+                        'bg-white/90 border border-red-200 text-red-700': toast.type === 'error',
+                        'bg-gray-800/90 text-white': toast.type === 'info'
+                    }">
+                    <i v-if="toast.type === 'success'" class="ph-fill ph-check-circle text-green-500 mr-2 text-lg"></i>
+                    <i v-if="toast.type === 'error'" class="ph-fill ph-warning-circle text-red-500 mr-2 text-lg"></i>
+                    <i v-if="toast.type === 'info'" class="ph ph-info mr-2 text-lg"></i>
+                    {{ toast.message }}
+                </div>
+            </transition-group>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
+
+        createApp({
+            setup() {
+                // 基础状态
+                const activeTab = ref('dashboard');
+                const currentPlatform = ref('all');
+                const filterMonth = ref('all');
+                const isAdmin = ref(true);
+                const isSyncing = ref(false);
+                const magicLinkResult = ref('');
+
+                // 核心数据
+                const platforms = ref([
+                    { id: 1, name: '美团', account: 'meituan_main' },
+                    { id: 2, name: '抖音', account: 'dy_live01' },
+                    { id: 3, name: '小红书', account: 'xhs_official' }
+                ]);
+                const expenses = ref([
+                    { id: 1, platformId: 1, month: '2026-05', amount: 3500, deleted: false },
+                    { id: 2, platformId: 2, month: '2026-05', amount: 8200, deleted: false },
+                    { id: 3, platformId: 3, month: '2026-05', amount: 1500, deleted: false }
+                ]);
+                const records = ref([
+                    { id: 1, platformId: 1, month: '2026-05', customerName: '李女士', deleted: false, items: [{ category: '皮肤项目', name: 'M22超光子', count: 1, amount: 1200 }] },
+                    { id: 2, platformId: 2, month: '2026-05', customerName: '王先生', deleted: false, items: [{ category: '脱毛护理', name: '冰点脱毛', count: 1, amount: 399 }, { category: '注射项目', name: '除皱针', count: 1, amount: 800 }] },
+                    { id: 3, platformId: 3, month: '2026-05', customerName: '陈女士', deleted: false, items: [{ category: '手术项目', name: '双眼皮成形', count: 1, amount: 6800 }] }
+                ]);
+
+                // 配置与状态
+                const config = reactive({ gistToken: '', gistId: '' });
+                const modals = reactive({ record: false, expense: false, settings: false, chart: false, confirm: false });
+                const toasts = ref([]);
+                
+                // 表单临时数据
+                const editingRecord = ref({ id: null, platformId: 1, month: '', customerName: '', items: [] });
+                const editingExpense = ref({ id: null, platformId: 1, month: '', amount: 0 });
+                const deleteTarget = ref({ type: '', id: null });
+                const searchQuery = reactive({ records: '' });
+                const page = reactive({ records: 1 });
+                const itemsPerPage = 10;
+
+                let chartInstances = { pie: null, bar: null, modalPie: null };
+                let syncTimeout = null;
+
+                // 初始化与鉴权
+                onMounted(() => {
+                    loadLocalData();
+                    checkUrlParams();
+                    initCharts();
+                });
+
+                const checkUrlParams = () => {
+                    const params = new URLSearchParams(window.location.search);
+                    if (params.get('mode') === 'guest') isAdmin.value = false;
+                    const gistIdParam = params.get('gistId');
+                    if (gistIdParam) {
+                        config.gistId = gistIdParam;
+                        pullFromGist(true); // 访客强制从云端拉取只读数据
+                    }
+                };
+
+                // ====== 数据计算 (Computed) ======
+                const availableMonths = computed(() => {
+                    const mSet = new Set();
+                    expenses.value.forEach(e => !e.deleted && mSet.add(e.month));
+                    records.value.forEach(r => !r.deleted && mSet.add(r.month));
+                    return Array.from(mSet).sort().reverse();
+                });
+
+                const currentPlatformName = computed(() => {
+                    if (currentPlatform.value === 'all') return '全渠道';
+                    const p = platforms.value.find(p => p.id === currentPlatform.value);
+                    return p ? p.name : '';
+                });
+
+                const filteredRecords = computed(() => {
+                    let res = records.value.filter(r => !r.deleted);
+                    if (currentPlatform.value !== 'all') res = res.filter(r => r.platformId === currentPlatform.value);
+                    if (filterMonth.value !== 'all') res = res.filter(r => r.month === filterMonth.value);
+                    if (searchQuery.records) {
+                        const q = searchQuery.records.toLowerCase();
+                        res = res.filter(r => r.customerName.toLowerCase().includes(q));
+                    }
+                    return res.sort((a,b) => b.id - a.id);
+                });
+
+                const paginatedRecords = computed(() => {
+                    const start = (page.records - 1) * itemsPerPage;
+                    return filteredRecords.value.slice(start, start + itemsPerPage);
+                });
+
+                const filteredExpenses = computed(() => {
+                    let res = expenses.value.filter(e => !e.deleted);
+                    if (currentPlatform.value !== 'all') res = res.filter(e => e.platformId === currentPlatform.value);
+                    if (filterMonth.value !== 'all') res = res.filter(e => e.month === filterMonth.value);
+                    return res.sort((a,b) => b.id - a.id);
+                });
+
+                const stats = computed(() => {
+                    const totalCost = filteredExpenses.value.reduce((sum, e) => sum + Number(e.amount), 0);
+                    const totalFirstVisits = filteredRecords.value.length;
+                    const cpa = totalFirstVisits > 0 ? (totalCost / totalFirstVisits).toFixed(2) : 0;
+                    return { totalCost, totalFirstVisits, cpa };
+                });
+
+                const editingRecordTotal = computed(() => {
+                    return editingRecord.value.items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+                });
+
+                const trashList = computed(() => {
+                    const list = [];
+                    records.value.filter(r => r.deleted).forEach(r => list.push({ type: 'record', id: r.id, desc: `${r.customerName} 的初诊 (${r.month})` }));
+                    expenses.value.filter(e => e.deleted).forEach(e => list.push({ type: 'expense', id: e.id, desc: `花费 ¥${e.amount} (${e.month})` }));
+                    return list;
+                });
+
+                const categoryData = computed(() => {
+                    const cats = { '脱毛护理':0, '皮肤项目':0, '注射项目':0, '手术项目':0 };
+                    filteredRecords.value.forEach(r => {
+                        r.items.forEach(item => { if(cats[item.category] !== undefined) cats[item.category] += Number(item.amount); });
+                    });
+                    return cats;
+                });
+
+                // ====== 交互逻辑 ======
+                const showToast = (msg, type = 'info') => {
+                    const id = Date.now();
+                    toasts.value.push({ id, message: msg, type });
+                    setTimeout(() => toasts.value = toasts.value.filter(t => t.id !== id), 3000);
+                };
+
+                const formatNumber = (num) => Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+                const getPlatformName = (id) => platforms.value.find(p => p.id === id)?.name || '未知';
+                const calculateRecordTotal = (rec) => rec.items.reduce((s, i) => s + Number(i.amount), 0);
+                const getCurrentMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+
+                // 表单操作
+                const openRecordModal = (rec = null) => {
+                    if (!isAdmin.value) return showToast('仅读模式无权限', 'error');
+                    if (rec) {
+                        editingRecord.value = JSON.parse(JSON.stringify(rec));
+                    } else {
+                        editingRecord.value = { id: null, platformId: platforms.value[0]?.id || 1, month: getCurrentMonth(), customerName: '', items: [] };
+                        addSubItem();
+                    }
+                    modals.record = true;
+                };
+
+                const addSubItem = () => {
+                    editingRecord.value.items.push({ category: '皮肤项目', name: '', count: 1, amount: '' });
+                };
+
+                const saveRecord = () => {
+                    if(!editingRecord.value.customerName) return showToast('请填写客户姓名', 'error');
+                    if (editingRecord.value.id) {
+                        const idx = records.value.findIndex(r => r.id === editingRecord.value.id);
+                        records.value[idx] = { ...editingRecord.value };
+                    } else {
+                        records.value.push({ ...editingRecord.value, id: Date.now(), deleted: false });
+                    }
+                    modals.record = false;
+                    showToast('记录已保存', 'success');
+                    triggerDataChange();
+                };
+
+                const openExpenseModal = (exp = null) => {
+                    if (!isAdmin.value) return;
+                    if (exp) {
+                        editingExpense.value = { ...exp };
+                    } else {
+                        editingExpense.value = { id: null, platformId: platforms.value[0]?.id || 1, month: getCurrentMonth(), amount: 0 };
+                    }
+                    modals.expense = true;
+                };
+
+                const saveExpense = () => {
+                    if (editingExpense.value.id) {
+                        const idx = expenses.value.findIndex(e => e.id === editingExpense.value.id);
+                        expenses.value[idx] = { ...editingExpense.value };
+                    } else {
+                        expenses.value.push({ ...editingExpense.value, id: Date.now(), deleted: false });
+                    }
+                    modals.expense = false;
+                    showToast('花费记录已保存', 'success');
+                    triggerDataChange();
+                };
+
+                const addPlatform = () => {
+                    platforms.value.push({ id: Date.now(), name: '新平台', account: 'account_name' });
+                    triggerDataChange();
+                };
+
+                const confirmDelete = (type, id) => {
+                    deleteTarget.value = { type, id };
+                    modals.confirm = true;
+                };
+
+                const executeDelete = () => {
+                    const { type, id } = deleteTarget.value;
+                    if (type === 'record') records.value.find(r => r.id === id).deleted = true;
+                    if (type === 'expense') expenses.value.find(e => e.id === id).deleted = true;
+                    if (type === 'platform') platforms.value = platforms.value.filter(p => p.id !== id);
+                    modals.confirm = false;
+                    showToast('已移至回收站', 'info');
+                    triggerDataChange();
+                };
+
+                const restoreItem = (type, id) => {
+                    if (type === 'record') records.value.find(r => r.id === id).deleted = false;
+                    if (type === 'expense') expenses.value.find(e => e.id === id).deleted = false;
+                    showToast('恢复成功', 'success');
+                    triggerDataChange();
+                };
+
+                // ====== 图表逻辑 ======
+                const initCharts = () => {
+                    if(activeTab.value !== 'dashboard') return;
+                    nextTick(() => {
+                        const ctxPie = document.getElementById('pieChart');
+                        const ctxBar = document.getElementById('barChart');
+                        if(!ctxPie || !ctxBar) return;
+
+                        if (chartInstances.pie) chartInstances.pie.destroy();
+                        if (chartInstances.bar) chartInstances.bar.destroy();
+
+                        const colors = ['#fde047', '#38bdf8', '#fb923c', '#a78bfa']; // 皮肤, 注射, 脱毛, 手术
+                        const data = Object.values(categoryData.value);
+                        const labels = Object.keys(categoryData.value);
+
+                        chartInstances.pie = new Chart(ctxPie, {
+                            type: 'doughnut',
+                            data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] },
+                            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } }, cutout: '70%' }
+                        });
+
+                        // 柱状图数据计算
+                        const months = availableMonths.value.slice(0, 6).reverse(); // 近6个月
+                        const barData = months.map(m => records.value.filter(r => !r.deleted && r.month === m).length);
+
+                        chartInstances.bar = new Chart(ctxBar, {
+                            type: 'bar',
+                            data: { labels: months, datasets: [{ label: '初诊人数', data: barData, backgroundColor: '#d4af37', borderRadius: 6 }] },
+                            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { display: false } }, x: { grid: { display: false } } } }
+                        });
+                    });
+                };
+
+                const openChartModal = () => {
+                    modals.chart = true;
+                    nextTick(() => {
+                        const ctx = document.getElementById('modalPieChart');
+                        if(chartInstances.modalPie) chartInstances.modalPie.destroy();
+                        const data = Object.values(categoryData.value);
+                        chartInstances.modalPie = new Chart(ctx, {
+                            type: 'polarArea',
+                            data: { labels: Object.keys(categoryData.value), datasets: [{ data, backgroundColor: ['rgba(253,224,71,0.6)', 'rgba(56,189,248,0.6)', 'rgba(251,146,60,0.6)', 'rgba(167,139,250,0.6)'] }] },
+                            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { font: { size: 16 } } } } }
+                        });
+                    });
+                };
+
+                watch([activeTab, currentPlatform, filterMonth, records, expenses], () => {
+                    if (activeTab.value === 'dashboard') initCharts();
+                }, { deep: true });
+
+                // ====== Excel 导出 ======
+                const exportToExcel = () => {
+                    const wb = XLSX.utils.book_new();
+                    // 记录表
+                    const recRows = filteredRecords.value.map(r => ({
+                        '时间': r.month, '平台': getPlatformName(r.platformId), '客户': r.customerName, '总金额': calculateRecordTotal(r), '项目明细': r.items.map(i => `${i.name}(¥${i.amount})`).join(' | ')
+                    }));
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(recRows), "初诊数据");
+                    // 费用表
+                    const expRows = filteredExpenses.value.map(e => ({ '时间': e.month, '平台': getPlatformName(e.platformId), '花费金额': e.amount }));
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(expRows), "推广花费");
+                    XLSX.writeFile(wb, `营销数据报表_${getCurrentMonth()}.xlsx`);
+                    showToast('报表导出成功', 'success');
+                };
+
+                // ====== 存储与云同步 ======
+                const saveConfig = () => {
+                    localStorage.setItem('sys_config', JSON.stringify(config));
+                };
+
+                const triggerDataChange = () => {
+                    if (!isAdmin.value) return;
+                    localStorage.setItem('sys_data', JSON.stringify({ platforms: platforms.value, expenses: expenses.value, records: records.value }));
+                    debouncedSync();
+                };
+
+                const debouncedSync = () => {
+                    if(!config.gistToken || !config.gistId) return;
+                    clearTimeout(syncTimeout);
+                    syncTimeout = setTimeout(() => pushToGist(), 1500); // 防抖1.5秒
+                };
+
+                const loadLocalData = () => {
+                    const localConf = localStorage.getItem('sys_config');
+                    if (localConf) Object.assign(config, JSON.parse(localConf));
+                    const localData = localStorage.getItem('sys_data');
+                    if (localData) {
+                        const d = JSON.parse(localData);
+                        platforms.value = d.platforms || [];
+                        expenses.value = d.expenses || [];
+                        records.value = d.records || [];
+                    }
+                };
+
+                const getExportPayload = () => JSON.stringify({ platforms: platforms.value, expenses: expenses.value, records: records.value });
+
+                const pushToGist = async () => {
+                    if(!config.gistToken || !config.gistId) return;
+                    isSyncing.value = true;
+                    showToast('云端同步中...', 'info');
+                    try {
+                        const res = await fetch(`https://api.github.com/gists/${config.gistId}`, {
+                            method: 'PATCH',
+                            headers: { 'Authorization': `token ${config.gistToken}`, 'Accept': 'application/vnd.github.v3+json' },
+                            body: JSON.stringify({ files: { 'marketing_data.json': { content: getExportPayload() } } })
+                        });
+                        if (res.ok) showToast('云同步完成', 'success');
+                        else showToast('同步失败，请检查 Token', 'error');
+                    } catch (e) {
+                        showToast('网络错误，无法连接云端', 'error');
+                    } finally {
+                        isSyncing.value = false;
+                    }
+                };
+
+                const pullFromGist = async (isGuest = false) => {
+                    if(!config.gistId) return;
+                    isSyncing.value = true;
+                    try {
+                        const headers = config.gistToken && !isGuest ? { 'Authorization': `token ${config.gistToken}` } : {};
+                        const res = await fetch(`https://api.github.com/gists/${config.gistId}`, { headers });
+                        if (res.ok) {
+                            const data = await res.json();
+                            const fileContent = data.files['marketing_data.json']?.content;
+                            if (fileContent) {
+                                const parsed = JSON.parse(fileContent);
+                                platforms.value = parsed.platforms || [];
+                                expenses.value = parsed.expenses || [];
+                                records.value = parsed.records || [];
+                                if(!isGuest) localStorage.setItem('sys_data', JSON.stringify(parsed));
+                                showToast('已拉取最新云端数据', 'success');
+                            }
+                        }
+                    } catch(e) {
+                        showToast('拉取云端数据失败', 'error');
+                    } finally {
+                        isSyncing.value = false;
+                    }
+                };
+
+                const forceSync = () => { pullFromGist(); pushToGist(); };
+
+                // 魔术链接生成
+                const generateMagicLink = (type) => {
+                    const baseUrl = window.location.origin + window.location.pathname;
+                    if (type === 'guest') {
+                        if(!config.gistId) return showToast('需先填写 Gist ID', 'error');
+                        magicLinkResult.value = `${baseUrl}?mode=guest&gistId=${config.gistId}`;
+                    } else {
+                        // Bookmarklet
+                        const script = `javascript:(function(){window.open('${baseUrl}','_blank')})();`;
+                        magicLinkResult.value = script;
+                    }
+                };
+
+                return {
+                    activeTab, currentPlatform, filterMonth, isAdmin, isSyncing, config, modals, toasts,
+                    platforms, expenses, records, editingRecord, editingExpense, trashList,
+                    availableMonths, currentPlatformName, filteredRecords, paginatedRecords, filteredExpenses,
+                    stats, editingRecordTotal, categoryData, page, itemsPerPage, searchQuery, magicLinkResult,
+                    formatNumber, getPlatformName, calculateRecordTotal, showToast,
+                    openRecordModal, addSubItem, saveRecord, openExpenseModal, saveExpense, addPlatform,
+                    confirmDelete, executeDelete, restoreItem, openChartModal, exportToExcel,
+                    saveConfig, debouncedSync, syncData: pushToGist, forceSync, generateMagicLink
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
